@@ -42,3 +42,6 @@ ENV/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Database
+qr_data.db

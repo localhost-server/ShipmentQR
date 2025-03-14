@@ -1,6 +1,6 @@
 # QR Code Generator
 
-A Streamlit web application that generates QR codes from spreadsheet data.
+A Streamlit web application that generates QR codes from spreadsheet data with persistent storage.
 
 ## Features
 
@@ -9,6 +9,9 @@ A Streamlit web application that generates QR codes from spreadsheet data.
 - Download or print QR codes
 - Supports any spreadsheet structure
 - No column name restrictions
+- SQLite database for data persistence
+- Unique reference IDs to avoid duplicates
+- View all previously generated QR codes
 
 ## Installation
 
@@ -42,11 +45,22 @@ streamlit run app.py
 QRGen/
 ├── app.py              # Main Streamlit application
 ├── requirements.txt    # Project dependencies
+├── qr_data.db         # SQLite database
 └── utils/
     ├── __init__.py
     ├── data_handler.py # Spreadsheet processing
-    └── qr_generator.py # QR code generation
+    ├── qr_generator.py # QR code generation
+    └── db_handler.py   # Database operations
 ```
+
+## Database
+
+The application uses SQLite for data persistence:
+- Each row gets a unique reference ID
+- Data is stored in JSON format
+- Prevents duplicate entries
+- Access historical data anytime
+
 
 ## License
 
