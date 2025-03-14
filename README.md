@@ -1,18 +1,30 @@
 # QR Code Generator
 
-A Streamlit web application that generates QR codes from spreadsheet data with persistent storage.
+A Streamlit web application that generates QR codes for artist shipping information.
 
 ## Features
 
 - Upload CSV or Excel files
-- Automatically converts each row to QR codes
+- Generate QR codes for each artist
 - Download or print QR codes
-- Supports any spreadsheet structure
-- No column name restrictions
 - SQLite database for data persistence
 - Unique reference IDs to avoid duplicates
 - View all previously generated QR codes
 - Clear data functionality for privacy protection
+
+## Required Spreadsheet Fields
+
+- Artist Name (required)
+- Phone (optional)
+- Address Fields (optional):
+  - Address Line 1
+  - Address Line 2
+  - City
+  - State
+  - Zip/Postal Code
+  - Country
+  
+All address fields will be combined into a single address string in the QR code.
 
 ## Installation
 
@@ -36,9 +48,9 @@ streamlit run app.py
 
 2. Open your browser and go to `http://localhost:8501`
 
-3. Upload your spreadsheet (CSV or Excel)
+3. Upload your spreadsheet (CSV or Excel) with artist information
 
-4. View, download, or print QR codes for each row
+4. View, download, or print QR codes for each artist
 
 ## Project Structure
 
@@ -57,8 +69,8 @@ QRGen/
 ## Database
 
 The application uses SQLite for data persistence:
-- Each row gets a unique reference ID
-- Data is stored in JSON format
+- Each artist gets a unique reference ID
+- Data includes artist name, phone, and combined address
 - Prevents duplicate entries
 - Access historical data anytime
 - Clear data option for privacy protection
@@ -69,7 +81,6 @@ To protect sensitive information:
 - Use the "Clear All Data" button in the "View Existing Data" tab
 - Always clear data before sharing the application with others
 - Database file (qr_data.db) is excluded from version control
-
 
 ## License
 

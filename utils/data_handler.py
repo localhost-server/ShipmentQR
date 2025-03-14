@@ -7,9 +7,34 @@ def generate_reference_id() -> str:
     """Generate a unique 8-character reference ID."""
     return str(uuid.uuid4())[:8]
 
+def combine_address(row: pd.Series) -> str:
+    """Combine all address fields into a single string."""
+    address_parts = []
+    address_fields = [
+        'Address: Address Line 1',
+        'Address: Address Line 2',
+        'Address: City',
+        'Address: State',
+        'Address: Zip/Postal Code',
+        'Address: Country'
+    ]
+    
+    for field in address_fields:
+        if field in row and pd.notna(row[field]) and str(row[field]).strip():
+            address_parts.append(str(row[field]).strip())
+    
+    return ', '.join(address_parts)
+
 def row_to_dict(row: pd.Series) -> Dict:
-    """Convert a pandas row to a dictionary, excluding special columns."""
-    return {k: v for k, v in row.items() if k not in ['Reference ID', 'QR Code', 'JSON_Data']}
+    """Convert a row to a dictionary with required fields."""
+    required_fields = {
+        'Artist Name': row.get('Artist Name', ''),
+        'Phone': row.get('Phone', ''),
+        'Address': combine_address(row)
+    }
+    
+    # Remove empty values
+    return {k: v for k, v in required_fields.items() if pd.notna(v) and str(v).strip()}
 
 def process_spreadsheet(file) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     """
@@ -23,6 +48,10 @@ def process_spreadsheet(file) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
             df = pd.read_excel(file)
         else:
             return None, "Unsupported file format. Please upload CSV or Excel file."
+
+        # Check for required field: Artist Name
+        if 'Artist Name' not in df.columns:
+            return None, "Missing required column: Artist Name"
 
         # Initialize database handler
         db = DatabaseHandler()
