@@ -63,16 +63,32 @@ with tab2:
     # Get all reference IDs
     ref_ids = db.get_all_reference_ids()
     
+    # Initialize session state for confirmation
+    if 'show_confirm' not in st.session_state:
+        st.session_state.show_confirm = False
+
     # Add Clear Data button with confirmation
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("🗑️ Clear All Data", type="secondary"):
-            if st.button("⚠️ Confirm Clear Data", type="primary"):
-                if db.clear_data():
-                    st.success("All data has been cleared!")
+        if not st.session_state.show_confirm:
+            if st.button("🗑️ Clear All Data", type="secondary"):
+                st.session_state.show_confirm = True
+                st.rerun()
+        else:
+            st.warning("⚠️ Are you sure you want to clear all data? This cannot be undone.")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Yes, Clear Data", type="primary"):
+                    if db.clear_data():
+                        st.session_state.show_confirm = False
+                        st.success("All data has been cleared!")
+                        st.rerun()
+                    else:
+                        st.error("Error clearing data. Please try again.")
+            with col2:
+                if st.button("No, Cancel", type="secondary"):
+                    st.session_state.show_confirm = False
                     st.rerun()
-                else:
-                    st.error("Error clearing data. Please try again.")
     
     if not ref_ids:
         st.info("No data available. Upload a spreadsheet to get started.")
