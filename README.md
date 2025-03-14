@@ -1,4 +1,4 @@
-# QR Code Generator
+# Artist QR Code Generator
 
 A Streamlit web application that generates QR codes for artist shipping information.
 
@@ -7,22 +7,20 @@ A Streamlit web application that generates QR codes for artist shipping informat
 - Upload CSV or Excel files
 - Generate QR codes for each artist
 - Download or print QR codes
-- SQLite database for data persistence
-- Unique reference IDs to avoid duplicates
-- View all previously generated QR codes
-- Clear data functionality for privacy protection
+- Combines address fields automatically
+- Simple and straightforward interface
 
 ## Required Spreadsheet Fields
 
 - Artist Name (required)
 - Phone (optional)
 - Address Fields (optional):
-  - Address Line 1
-  - Address Line 2
-  - City
-  - State
-  - Zip/Postal Code
-  - Country
+  - Address: Address Line 1
+  - Address: Address Line 2
+  - Address: City
+  - Address: State
+  - Address: Zip/Postal Code
+  - Address: Country
   
 All address fields will be combined into a single address string in the QR code.
 
@@ -58,29 +56,19 @@ streamlit run app.py
 QRGen/
 ├── app.py              # Main Streamlit application
 ├── requirements.txt    # Project dependencies
-├── qr_data.db         # SQLite database
 └── utils/
     ├── __init__.py
-    ├── data_handler.py # Spreadsheet processing
-    ├── qr_generator.py # QR code generation
-    └── db_handler.py   # Database operations
+    ├── data_handler.py # Download functionality
+    └── qr_generator.py # QR code generation
 ```
 
-## Database
+## QR Code Data Format
 
-The application uses SQLite for data persistence:
-- Each artist gets a unique reference ID
-- Data includes artist name, phone, and combined address
-- Prevents duplicate entries
-- Access historical data anytime
-- Clear data option for privacy protection
-
-## Privacy
-
-To protect sensitive information:
-- Use the "Clear All Data" button in the "View Existing Data" tab
-- Always clear data before sharing the application with others
-- Database file (qr_data.db) is excluded from version control
+Each QR code contains:
+- Reference ID (automatically generated)
+- Artist Name
+- Phone (if provided)
+- Combined Address (if address fields are provided)
 
 ## License
 
