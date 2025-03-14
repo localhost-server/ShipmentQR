@@ -92,3 +92,19 @@ class DatabaseHandler:
             
         finally:
             conn.close()
+
+    def clear_data(self) -> bool:
+        """Clear all data from the database."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            
+            c.execute("DELETE FROM shipping_data")
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            print(f"Error clearing database: {e}")
+            return False
+        finally:
+            conn.close()

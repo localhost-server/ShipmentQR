@@ -63,10 +63,22 @@ with tab2:
     # Get all reference IDs
     ref_ids = db.get_all_reference_ids()
     
+    # Add Clear Data button with confirmation
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("🗑️ Clear All Data", type="secondary"):
+            if st.button("⚠️ Confirm Clear Data", type="primary"):
+                if db.clear_data():
+                    st.success("All data has been cleared!")
+                    st.rerun()
+                else:
+                    st.error("Error clearing data. Please try again.")
+    
     if not ref_ids:
         st.info("No data available. Upload a spreadsheet to get started.")
     else:
         st.write("### Stored Data")
+        st.caption("Note: Clear data to remove any private information before sharing with others.")
         for ref_id in ref_ids:
             data = db.get_data(ref_id)
             if data:

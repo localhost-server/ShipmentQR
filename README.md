@@ -12,6 +12,7 @@ A Streamlit web application that generates QR codes from spreadsheet data with p
 - SQLite database for data persistence
 - Unique reference IDs to avoid duplicates
 - View all previously generated QR codes
+- Clear data functionality for privacy protection
 
 ## Installation
 
@@ -60,6 +61,14 @@ The application uses SQLite for data persistence:
 - Data is stored in JSON format
 - Prevents duplicate entries
 - Access historical data anytime
+- Clear data option for privacy protection
+
+## Privacy
+
+To protect sensitive information:
+- Use the "Clear All Data" button in the "View Existing Data" tab
+- Always clear data before sharing the application with others
+- Database file (qr_data.db) is excluded from version control
 
 
 ## License
