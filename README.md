@@ -8,7 +8,9 @@ A Streamlit web application that generates QR codes for artist shipping informat
 - Generate QR codes for each artist
 - Download or print QR codes
 - Combines address fields automatically
-- Simple and straightforward interface
+- View all QR codes directly without expanding
+- History tab with timestamps
+- Session-based history tracking
 
 ## Required Spreadsheet Fields
 
@@ -46,9 +48,15 @@ streamlit run app.py
 
 2. Open your browser and go to `http://localhost:8501`
 
-3. Upload your spreadsheet (CSV or Excel) with artist information
+3. Generate QR Codes:
+   - Upload your spreadsheet (CSV or Excel) with artist information
+   - View generated QR codes immediately
+   - Download or print individual QR codes
 
-4. View, download, or print QR codes for each artist
+4. View History:
+   - Switch to History tab to see all generated QR codes
+   - QR codes are sorted by generation time (newest first)
+   - All QR codes remain available during the session
 
 ## Project Structure
 
