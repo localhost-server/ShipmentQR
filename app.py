@@ -148,6 +148,12 @@ with tab2:
     if not st.session_state.history:
         st.info("No QR codes have been generated yet. Upload a spreadsheet to get started.")
     else:
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            if st.button("🗑️ Clear History", type="secondary"):
+                st.session_state.history = []
+                st.rerun()
+        
         st.markdown("## Generated QR Codes")
         
         for entry in reversed(st.session_state.history):

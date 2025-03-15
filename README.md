@@ -11,6 +11,7 @@ A Streamlit web application that generates QR codes for artist shipping informat
 - View all QR codes directly without expanding
 - History tab with timestamps
 - Session-based history tracking
+- Clear history functionality
 
 ## Required Spreadsheet Fields
 
@@ -57,6 +58,7 @@ streamlit run app.py
    - Switch to History tab to see all generated QR codes
    - QR codes are sorted by generation time (newest first)
    - All QR codes remain available during the session
+   - Clear history with one click when needed
 
 ## Project Structure
 
