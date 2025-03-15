@@ -45,3 +45,7 @@ Thumbs.db
 
 # Database
 qr_data.db
+qrcodes.db
+
+# Application settings
+settings.json
