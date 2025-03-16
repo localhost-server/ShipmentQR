@@ -33,41 +33,41 @@ class QRScanner:
                     st.error("Failed to decode image")
                     return None, "Failed to process camera image"
                 
-                st.info("Converting to grayscale...")
-                # Convert to grayscale for QR detection
+                st.info("Processing image...")
+                # First normalize the image a bit
+                frame = cv2.resize(frame, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+                
+                # Convert to grayscale
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 
-                # Apply image processing to improve QR detection
-                st.info("Applying image processing...")
-                # Use adaptive thresholding for better results
+                # Apply adaptive thresholding
                 binary = cv2.adaptiveThreshold(
-                    gray, 
-                    255, 
-                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                    cv2.THRESH_BINARY, 
-                    11, 
-                    2
+                    gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                    cv2.THRESH_BINARY, 21, 10
                 )
                 
-                # Try different methods to detect QR code
-                qr_codes = decode(frame)  # Try with original image first
-                if qr_codes:
-                    method_used = "original"
-                    st.success("QR code found in original image")
-                else:
-                    # Try with grayscale
-                    qr_codes = decode(gray)
-                    if qr_codes:
-                        method_used = "grayscale"
-                        st.success("QR code found in grayscale image")
-                    else:
-                        # Try with binary
-                        qr_codes = decode(binary)
+                # Define detection methods with their parameters
+                detection_methods = [
+                    (frame, "original"),
+                    (gray, "grayscale"),
+                    (binary, "binary"),
+                    (cv2.GaussianBlur(gray, (5, 5), 0), "blurred"),
+                    (cv2.bilateralFilter(gray, 9, 75, 75), "bilateral_filtered"),
+                ]
+                
+                qr_codes = None
+                method_used = None
+                
+                for img, method in detection_methods:
+                    try:
+                        qr_codes = decode(img)
                         if qr_codes:
-                            method_used = "binary"
-                            st.success("QR code found in binary image")
-                        else:
-                            method_used = None
+                            method_used = method
+                            st.success(f"QR code found using {method} method")
+                            break
+                    except Exception as e:
+                        st.warning(f"Error with {method} method: {str(e)}")
+                        continue
 
                 if qr_codes:
                     st.info(f"Raw QR code data found (hex): {qr_codes[0].data.hex()}")
@@ -83,21 +83,16 @@ class QRScanner:
             results = []
             for qr_code in qr_codes:
                 try:
+                    # Try UTF-8 decoding with error handling
                     try:
-                        # Try UTF-8 decoding first
                         data = qr_code.data.decode('utf-8')
-                    except UnicodeDecodeError:
-                        st.warning("Failed UTF-8 decode, trying other encodings...")
-                        try:
-                            data = qr_code.data.decode('iso-8859-1')
-                            st.info("Successfully decoded using ISO-8859-1")
-                        except UnicodeDecodeError:
-                            try:
-                                data = qr_code.data.decode('cp1252')
-                                st.info("Successfully decoded using CP1252")
-                            except UnicodeDecodeError:
-                                st.error("Failed to decode QR code data with any encoding")
-                                continue
+                        # Normalize line endings
+                        data = data.replace('\r\n', '\n').replace('\r', '\n')
+                        st.info("Successfully decoded using UTF-8")
+                    except UnicodeDecodeError as e:
+                        st.error(f"Failed to decode QR data: {str(e)}")
+                        st.info(f"Raw QR data (hex): {qr_code.data.hex()}")
+                        continue
 
                     if not data:
                         st.warning("Empty QR code data")
