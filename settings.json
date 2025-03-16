@@ -1,0 +1,9 @@
+{
+  "sender": {
+    "name": "Default Name",
+    "address": "Default Address",
+    "city": "Default City",
+    "state": "Default State",
+    "zip": "00000"
+  }
+}
