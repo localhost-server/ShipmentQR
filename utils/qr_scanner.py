@@ -25,24 +25,52 @@ class QRScanner:
             # Process the image
             try:
                 bytes_data = camera_image.getvalue()
+                st.info("Processing image...")
                 nparr = np.frombuffer(bytes_data, np.uint8)
                 frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 
                 if frame is None:
+                    st.error("Failed to decode image")
                     return None, "Failed to process camera image"
                 
+                st.info("Converting to grayscale...")
                 # Convert to grayscale for QR detection
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 
                 # Apply image processing to improve QR detection
-                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                threshold = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+                st.info("Applying image processing...")
+                # Use adaptive thresholding for better results
+                binary = cv2.adaptiveThreshold(
+                    gray, 
+                    255, 
+                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                    cv2.THRESH_BINARY, 
+                    11, 
+                    2
+                )
                 
-                # Scan for QR codes
-                qr_codes = decode(threshold)
-                if not qr_codes:
-                    # Try original grayscale if threshold doesn't work
+                # Try different methods to detect QR code
+                qr_codes = decode(frame)  # Try with original image first
+                if qr_codes:
+                    method_used = "original"
+                    st.success("QR code found in original image")
+                else:
+                    # Try with grayscale
                     qr_codes = decode(gray)
+                    if qr_codes:
+                        method_used = "grayscale"
+                        st.success("QR code found in grayscale image")
+                    else:
+                        # Try with binary
+                        qr_codes = decode(binary)
+                        if qr_codes:
+                            method_used = "binary"
+                            st.success("QR code found in binary image")
+                        else:
+                            method_used = None
+
+                if qr_codes:
+                    st.info(f"Raw QR code data found (hex): {qr_codes[0].data.hex()}")
                     
             except Exception as e:
                 st.error(f"Image processing error: {str(e)}")
@@ -55,12 +83,30 @@ class QRScanner:
             results = []
             for qr_code in qr_codes:
                 try:
-                    data = qr_code.data.decode('utf-8')
+                    try:
+                        # Try UTF-8 decoding first
+                        data = qr_code.data.decode('utf-8')
+                    except UnicodeDecodeError:
+                        st.warning("Failed UTF-8 decode, trying other encodings...")
+                        try:
+                            data = qr_code.data.decode('iso-8859-1')
+                            st.info("Successfully decoded using ISO-8859-1")
+                        except UnicodeDecodeError:
+                            try:
+                                data = qr_code.data.decode('cp1252')
+                                st.info("Successfully decoded using CP1252")
+                            except UnicodeDecodeError:
+                                st.error("Failed to decode QR code data with any encoding")
+                                continue
+
                     if not data:
+                        st.warning("Empty QR code data")
                         continue
-                        
-                    parsed_data = QRScanner._parse_qr_data(data)
+                    
+                    st.info(f"Raw QR data: {repr(data)}")  # Use repr to show escape characters
+                    parsed_data = QRScanner._parse_qr_data(data.replace('\r\n', '\n'))  # Normalize line endings
                     if parsed_data and not 'error' in parsed_data:
+                        st.success("Successfully parsed QR data")
                         results.append(parsed_data)
                     else:
                         st.warning(f"Failed to parse QR data: {parsed_data.get('error', 'Unknown error')}")
@@ -70,6 +116,7 @@ class QRScanner:
                     continue
             
             if results:
+                st.success(f"Successfully decoded QR code using {method_used} method")
                 return results, None
             return None, "Could not decode QR code data"
 
@@ -115,20 +162,31 @@ class QRScanner:
     @staticmethod
     def _parse_qr_data(data):
         """Parse the QR code data into a structured format"""
+        def log_debug(msg):
+            print(f"QR Parser Debug: {msg}")
+            st.info(msg)
+
         try:
+            log_debug("Parsing QR data...")
+            log_debug(f"Raw data to parse: {data}")
+            
             lines = data.split('\n')
             result = {'sender': {}, 'artist': {}}
             current_section = None
 
-            for line in lines:
+            for line_num, line in enumerate(lines):
                 line = line.strip()
                 if not line:
                     continue
 
+                log_debug(f"Processing line {line_num + 1}: {line}")
+
                 if line == 'SR:':
+                    log_debug("Found sender section")
                     current_section = 'sender'
                     continue
                 elif line == 'AT:':
+                    log_debug("Found artist section")
                     current_section = 'artist'
                     continue
 
@@ -136,6 +194,7 @@ class QRScanner:
                     key, value = line.split(':', 1)
                     key = key.strip()
                     value = value.strip()
+                    log_debug(f"Section: {current_section}, Key: {key}, Value: {value}")
 
                     if current_section == 'sender':
                         if key == 'NM':
@@ -156,7 +215,8 @@ class QRScanner:
                             result['artist']['phone'] = value
                         elif key == 'ADD':
                             result['artist']['address'] = value
-
+            
+            log_debug(f"Final parsed result: {result}")
             return result
         except Exception as e:
             return {'error': f"Failed to parse QR data: {str(e)}"}
