@@ -68,72 +68,36 @@ st.markdown("""
         text-align: center;
         margin-top: 0.25rem;
     }
-    /* Scanning animation styles */
-    @keyframes scan {
-        0% {
-            transform: translateY(-100%);
-            opacity: 0.5;
-        }
-        50% {
-            opacity: 1;
-        }
-        100% {
-            transform: translateY(100%);
-            opacity: 0.5;
-        }
-    }
-    .camera-container {
-        position: relative;
-        overflow: hidden;
-        border-radius: 4px;
-    }
-    .scan-line {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: #00ff00;
-        animation: scan 2s linear infinite;
-        box-shadow: 0 0 8px #00ff00;
-    }
-    .scan-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        border: 2px solid #00ff00;
-        border-radius: 4px;
-        box-shadow: 0 0 0 1px rgba(0,255,0,0.2);
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # Title and description
 st.markdown("## 🎨 Artist QR Code Generator", help=None)
 
-# Function to load settings
+from utils.qr_scanner import QRScanner
+from utils.ui_components import ScannerUI, SettingsUI, QRDisplayUI
+
+# Initialize session state
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = None
+    st.session_state.scan_result = None
+    st.session_state.camera_active = False
+    st.session_state.last_scan_time = None
+    st.session_state.formatted_result = None
+
+# Settings management
 def load_settings():
     if os.path.exists('settings.json'):
         with open('settings.json', 'r') as f:
             return json.load(f)
     return {"sender": {"name": "", "address": "", "city": "", "state": "", "zip": ""}}
 
-# Function to save settings
 def save_settings(settings):
     with open('settings.json', 'w') as f:
         json.dump(settings, f, indent=2)
 
-from utils.qr_scanner import QRScanner
-
-# Initialize session state for tab tracking
-if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = None
-    st.session_state.scan_result = None
-
 # Tabs for generate, scan, settings, and history
-tab1, tab2, tab3, tab4 = st.tabs(["Gen QR", "Scan QR", "View QR","Settings"])
+tab1, tab2, tab3, tab4 = st.tabs(["Gen QR", "Scan QR", "Settings", "View QR"])
 
 with tab1:
     # Update tab state
@@ -223,7 +187,14 @@ with tab1:
                     col1, col2 = st.columns([2, 1])
                     
                     with col1:
-                        st.markdown("#### 🎨 Artist Details", help=None)
+                        st.markdown("#### 📤 Sender Information", help=None)
+                        if 'sender' in entry['data']:
+                            sender = entry['data']['sender']
+                            st.write("**Name:**", sender['name'])
+                            st.write("**Address:**", sender['address'])
+                            st.write("**Location:**", f"{sender['city']}, {sender['state']} {sender['zip']}")
+                        
+                        st.markdown("#### 🎨 Artist Information", help=None)
                         st.write("**Name:**", entry['data']['Artist Name'])
                         if entry['data']['Phone']:
                             st.write("**Phone:**", entry['data']['Phone'])
@@ -251,92 +222,46 @@ with tab1:
 with tab2:
     # Update tab state
     st.session_state.active_tab = 'scan'
-    st.session_state.scan_result = None
-    if 'camera_active' not in st.session_state:
-        st.session_state.camera_active = False
     
-    st.markdown("## Scan QR")
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        if st.session_state.scan_result:
-            st.success("QR Code detected!")
-            formatted_result = QRScanner.format_scan_result(st.session_state.scan_result)
-            st.text_area("QR Code Content", value=formatted_result, height=250, disabled=True)
-            if st.button("Start New Scan"):
-                st.session_state.scan_result = None
-                st.session_state.camera_active = True
-                st.experimental_rerun()
-        else:
-            if not st.session_state.camera_active:
-                st.info("📸 Click the button below to start scanning")
-                st.markdown("""
-                    <style>
-                        .guide-text {
-                            text-align: center;
-                            padding: 1rem;
-                            background: #f0f2f6;
-                            border-radius: 4px;
-                            margin-bottom: 1rem;
-                        }
-                    </style>
-                    <div class="guide-text">
-                        <p>🎯 Hold the QR code steady and centered in the camera view</p>
-                        <p>📱 Keep your device about 6-8 inches away from the code</p>
-                        <p>💡 Ensure good lighting and minimal glare</p>
-                    </div>
-                """, unsafe_allow_html=True)
-                if st.button("Start Camera", use_container_width=True):
-                    st.session_state.camera_active = True
-                    st.experimental_rerun()
-            else:
-                # Camera container with scanning animation
-                camera_container = st.container()
-                with camera_container:
-                    st.markdown("""
-                        <style>
-                            [data-testid="stCamera"] > div {
-                                min-height: 400px !important;
-                            }
-                            [data-testid="stCamera"] video {
-                                min-height: 400px !important;
-                                object-fit: cover;
-                            }
-                        </style>
-                        <div class="camera-container">
-                            <div class="scan-line"></div>
-                            <div class="scan-overlay"></div>
-                    """, unsafe_allow_html=True)
-                    
-                    scanning_spinner = st.empty()
-                    with scanning_spinner:
-                        st.info("🔍 Scanning for QR code...")
-                    
-                    results, error = QRScanner.scan_from_camera()
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    
-                    if results:
-                        scanning_spinner.success("✅ QR Code detected!")
-                        st.session_state.scan_result = results[0]
-                        st.session_state.camera_active = False
-                        st.experimental_rerun()
-                    elif error:
-                        if error != "No QR code found in camera frame":
-                            scanning_spinner.error(error)
-                    
-                    col1, col2 = st.columns([4, 1])
-                    with col2:
-                        if st.button("Stop Camera", type="secondary"):
-                            st.session_state.camera_active = False
-                            st.experimental_rerun()
+    # Show scanner interface
+    if ScannerUI.show_scan_interface():
+        # Only process camera input if scanner is active
+        results, error = QRScanner.scan_from_camera()
+        
+        # Handle scan results
+        if results:
+            st.session_state.scan_result = results[0]
+            st.session_state.formatted_result = QRScanner.format_scan_result(results[0])
+            st.session_state.camera_active = False
+            st.experimental_rerun()
+        elif error:
+            # Don't show the "no QR code found" message too frequently
+            current_time = time.time()
+            if (st.session_state.last_scan_time is None or 
+                current_time - st.session_state.last_scan_time >= 3):
+                if error != "No QR code found. Please ensure good lighting and hold the camera steady.":
+                    st.warning(error)
+                st.session_state.last_scan_time = current_time
 
-# View QR tab
+# Settings tab
 with tab3:
+    # Update tab state
+    st.session_state.active_tab = 'settings'
+    st.session_state.scan_result = None
+    
+    # Show settings interface
+    settings = load_settings()
+    SettingsUI.show_settings_interface(settings, save_settings)
+
+# History tab
+with tab4:
     # Update tab state
     st.session_state.active_tab = 'history'
     st.session_state.scan_result = None
+    
     st.markdown("## History")
     entries = db.get_all_entries()
+    
     if not entries:
         st.info("No QR codes have been generated yet. Upload a spreadsheet to get started.")
     else:
@@ -349,67 +274,6 @@ with tab3:
         
         st.markdown("## Generated QR Codes", help=None)
         
+        # Display each QR code entry
         for entry in entries:
-            with st.container():
-                st.markdown("<div class='history-section'>", unsafe_allow_html=True)
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    st.markdown(f"#### 🎨 Artist Details • *{entry['timestamp']}*", help=None)
-                    st.write("**Name:**", entry['data']['Artist Name'])
-                    if entry['data']['Phone']:
-                        st.write("**Phone:**", entry['data']['Phone'])
-                    if entry['data']['Address']:
-                        st.write("**Address:**", entry['data']['Address'])
-                    
-                with col2:
-                    qr_html = f"""
-                    <div class='qr-code-container'>
-                        <img src='data:image/png;base64,{entry['qr_code']}' 
-                             alt='QR Code'
-                             style='width: 200px;'/>
-                        <div class='download-link'>
-                            {generate_download_link(entry['qr_code'], f"qr_code_{entry['reference_id']}.png")}
-                        </div>
-                    </div>
-                    """
-                    st.markdown(qr_html, unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-# Settings tab
-with tab4:
-    # Update tab state
-    st.session_state.active_tab = 'settings'
-    st.session_state.scan_result = None
-    st.markdown("## Sender Settings")
-    st.markdown("Configure the sender information to be included in QR codes.")
-    
-    # Load current settings
-    settings = load_settings()
-    
-    # Create form for settings
-    with st.form("sender_settings"):
-        sender_name = st.text_input("Name", value=settings["sender"]["name"])
-        sender_address = st.text_input("Address Line 1", value=settings["sender"]["address"])
-        sender_city = st.text_input("City", value=settings["sender"]["city"])
-        sender_state = st.text_input("State", value=settings["sender"]["state"])
-        sender_zip = st.text_input("Zip Code", value=settings["sender"]["zip"])
-        
-        submit = st.form_submit_button("Save Settings")
-        
-        if submit:
-            # Validate all fields are filled
-            if all([sender_name, sender_address, sender_city, sender_state, sender_zip]):
-                new_settings = {
-                    "sender": {
-                        "name": sender_name,
-                        "address": sender_address,
-                        "city": sender_city,
-                        "state": sender_state,
-                        "zip": sender_zip
-                    }
-                }
-                save_settings(new_settings)
-                st.success("Settings saved successfully!")
-            else:
-                st.error("All fields are required. Please fill in all the information.")
+            QRDisplayUI.show_qr_entry(entry, generate_download_link)
