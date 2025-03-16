@@ -12,7 +12,6 @@ import os
 st.set_page_config(
     page_title="Artist QR Code Generator",
     page_icon="🎨",
-    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
@@ -69,6 +68,45 @@ st.markdown("""
         text-align: center;
         margin-top: 0.25rem;
     }
+    /* Scanning animation styles */
+    @keyframes scan {
+        0% {
+            transform: translateY(-100%);
+            opacity: 0.5;
+        }
+        50% {
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(100%);
+            opacity: 0.5;
+        }
+    }
+    .camera-container {
+        position: relative;
+        overflow: hidden;
+        border-radius: 4px;
+    }
+    .scan-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #00ff00;
+        animation: scan 2s linear infinite;
+        box-shadow: 0 0 8px #00ff00;
+    }
+    .scan-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border: 2px solid #00ff00;
+        border-radius: 4px;
+        box-shadow: 0 0 0 1px rgba(0,255,0,0.2);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -87,45 +125,20 @@ def save_settings(settings):
     with open('settings.json', 'w') as f:
         json.dump(settings, f, indent=2)
 
-# Tabs for generate, settings, and history
-tab1, tab2, tab3 = st.tabs(["Generate QR Codes", "Settings", "View QR Codes"])
+from utils.qr_scanner import QRScanner
 
-# Settings tab
-with tab2:
-    st.markdown("## Sender Settings")
-    st.markdown("Configure the sender information to be included in QR codes.")
-    
-    # Load current settings
-    settings = load_settings()
-    
-    # Create form for settings
-    with st.form("sender_settings"):
-        sender_name = st.text_input("Name", value=settings["sender"]["name"])
-        sender_address = st.text_input("Address Line 1", value=settings["sender"]["address"])
-        sender_city = st.text_input("City", value=settings["sender"]["city"])
-        sender_state = st.text_input("State", value=settings["sender"]["state"])
-        sender_zip = st.text_input("Zip Code", value=settings["sender"]["zip"])
-        
-        submit = st.form_submit_button("Save Settings")
-        
-        if submit:
-            # Validate all fields are filled
-            if all([sender_name, sender_address, sender_city, sender_state, sender_zip]):
-                new_settings = {
-                    "sender": {
-                        "name": sender_name,
-                        "address": sender_address,
-                        "city": sender_city,
-                        "state": sender_state,
-                        "zip": sender_zip
-                    }
-                }
-                save_settings(new_settings)
-                st.success("Settings saved successfully!")
-            else:
-                st.error("All fields are required. Please fill in all the information.")
+# Initialize session state for tab tracking
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = None
+    st.session_state.scan_result = None
+
+# Tabs for generate, scan, settings, and history
+tab1, tab2, tab3, tab4 = st.tabs(["Gen QR", "Scan QR", "View QR","Settings"])
 
 with tab1:
+    # Update tab state
+    st.session_state.active_tab = 'generate'
+    st.session_state.scan_result = None
     st.markdown("## Generate QR Codes")
 
     # Load sender settings
@@ -158,101 +171,73 @@ with tab1:
                 st.error("Missing required column: Artist Name")
                 st.stop()
 
-            # Success message with auto-hide
-            placeholder = st.empty()
-            placeholder.success(f"Processing {len(df)} entries...")
-            import time
-            time.sleep(2)
-            placeholder.empty()
-
-            # Create container for all QR codes
-            qr_container = st.container()
-            
-            # Process each row
-            for index, row in df.iterrows():
-                # Generate reference ID
-                ref_id = str(uuid.uuid4())[:8]
+            # Process entries
+            with st.spinner(f"Processing {len(df)} entries..."):
+                qr_container = st.container()
                 
-                # Combine address fields if present
-                address_parts = []
-                address_fields = [
-                    'Address: Address Line 1',
-                    'Address: Address Line 2',
-                    'Address: City',
-                    'Address: State',
-                    'Address: Zip/Postal Code',
-                    'Address: Country'
-                ]
+                for index, row in df.iterrows():
+                    # Generate reference ID
+                    ref_id = str(uuid.uuid4())[:8]
+                    
+                    # Combine address fields
+                    address_parts = []
+                    address_fields = ['Address: Address Line 1', 'Address: Address Line 2', 'Address: City',
+                                    'Address: State', 'Address: Zip/Postal Code', 'Address: Country']
+                    
+                    for field in address_fields:
+                        if field in row and pd.notna(row[field]) and str(row[field]).strip():
+                            address_parts.append(str(row[field]).strip())
+                    
+                    combined_address = ', '.join(address_parts)
+
+                    # Generate and save entry
+                    qr_content = (
+                        f"SR:\nNM: {sender_settings['name']}\nADD: {sender_settings['address']}\n"
+                        f"CT: {sender_settings['city']}\nSTT: {sender_settings['state']}\n"
+                        f"CD: {sender_settings['zip']}\n\nAT:\nNM: {row['Artist Name']}\n"
+                        f"PH: {row.get('Phone', '')}\nADD: {combined_address}"
+                    )
+                    
+                    qr_code = generate_qr_code(qr_content)
+                    
+                    entry = {
+                        'reference_id': ref_id,
+                        'data': {
+                            'sender': sender_settings,
+                            'Artist Name': row['Artist Name'],
+                            'Phone': row.get('Phone', ''),
+                            'Address': combined_address
+                        },
+                        'qr_code': qr_code,
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    }
+
+                    db.save_entry(entry)
+
+                # Display generated QR codes
+                st.success(f"Successfully processed {len(df)} entries!")
+                st.markdown("## Generated QR Codes")
                 
-                for field in address_fields:
-                    if field in row and pd.notna(row[field]) and str(row[field]).strip():
-                        address_parts.append(str(row[field]).strip())
-                
-                combined_address = ', '.join(address_parts)
-
-                # Format QR code content
-                qr_content = (
-                    f"SR:\n"
-                    f"NM: {sender_settings['name']}\n"
-                    f"ADD: {sender_settings['address']}\n"
-                    f"CT: {sender_settings['city']}\n"
-                    f"STT: {sender_settings['state']}\n"
-                    f"CD: {sender_settings['zip']}\n\n"
-                    f"AT:\n"
-                    f"NM: {row['Artist Name']}\n"
-                    f"PH: {row.get('Phone', '')}\n"
-                    f"ADD: {combined_address}"
-                )
-
-                # Create data dictionary with both sender and artist info
-                data = {
-                    'reference_id': ref_id,
-                    'sender': sender_settings,
-                    'Artist Name': row['Artist Name'],
-                    'Phone': row.get('Phone', ''),
-                    'Address': combined_address
-                }
-
-                # Generate QR code with formatted content
-                qr_code = generate_qr_code(qr_content)
-
-                # Create entry
-                entry = {
-                    'reference_id': ref_id,
-                    'data': data,
-                    'qr_code': qr_code,
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-
-                # Save to database
-                db.save_entry(entry)
-
-                # Display the entry in the container
-                with qr_container:
+                for entry in db.get_all_entries():
                     st.markdown("<div class='qr-code-section'>", unsafe_allow_html=True)
                     col1, col2 = st.columns([2, 1])
                     
                     with col1:
-                        st.markdown("#### 📤 Sender Information", help=None)
-                        st.write("**Name:**", sender_settings['name'])
-                        st.write("**Address:**", sender_settings['address'])
-                        st.write("**Location:**", f"{sender_settings['city']}, {sender_settings['state']} {sender_settings['zip']}")
-                            
-                        st.markdown("#### 🎨 Artist Information", help=None)
-                        st.write("**Name:**", row['Artist Name'])
-                        if pd.notna(row.get('Phone')):
-                            st.write("**Phone:**", row['Phone'])
-                        if combined_address:
-                            st.write("**Address:**", combined_address)
-                        
+                        st.markdown("#### 🎨 Artist Details", help=None)
+                        st.write("**Name:**", entry['data']['Artist Name'])
+                        if entry['data']['Phone']:
+                            st.write("**Phone:**", entry['data']['Phone'])
+                        if entry['data']['Address']:
+                            st.write("**Address:**", entry['data']['Address'])
+                    
                     with col2:
                         qr_html = f"""
                         <div class='qr-code-container'>
-                            <img src='data:image/png;base64,{qr_code}' 
+                            <img src='data:image/png;base64,{entry['qr_code']}' 
                                  alt='QR Code'
                                  style='width: 200px;'/>
                             <div class='download-link'>
-                                {generate_download_link(qr_code, f"qr_code_{ref_id}.png")}
+                                {generate_download_link(entry['qr_code'], f"qr_code_{entry['reference_id']}.png")}
                             </div>
                         </div>
                         """
@@ -262,7 +247,61 @@ with tab1:
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
 
+# Scan QR tab
+with tab2:
+    # Update tab state
+    st.session_state.active_tab = 'scan'
+    st.session_state.scan_result = None
+    if 'camera_active' not in st.session_state:
+        st.session_state.camera_active = False
+    
+    st.markdown("## Scan QR")
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        if st.session_state.scan_result:
+            st.success("QR Code detected!")
+            formatted_result = QRScanner.format_scan_result(st.session_state.scan_result)
+            st.text_area("QR Code Content", value=formatted_result, height=250, disabled=True)
+            if st.button("Start New Scan"):
+                st.session_state.scan_result = None
+                st.session_state.camera_active = True
+                st.experimental_rerun()
+        else:
+            if not st.session_state.camera_active:
+                if st.button("Start Camera"):
+                    st.session_state.camera_active = True
+                    st.experimental_rerun()
+            else:
+                # Camera container with scanning animation
+                camera_container = st.container()
+                with camera_container:
+                    st.markdown("""
+                        <div class="camera-container">
+                            <div class="scan-line"></div>
+                            <div class="scan-overlay"></div>
+                    """, unsafe_allow_html=True)
+                    
+                    results, error = QRScanner.scan_from_camera()
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    if results:
+                        st.session_state.scan_result = results[0]
+                        st.session_state.camera_active = False
+                        st.experimental_rerun()
+                    elif error and error != "No QR code found in camera frame":
+                        st.error(error)
+                    
+                    if st.button("Stop Camera"):
+                        st.session_state.camera_active = False
+                        st.experimental_rerun()
+
+# View QR tab
 with tab3:
+    # Update tab state
+    st.session_state.active_tab = 'history'
+    st.session_state.scan_result = None
+    st.markdown("## History")
     entries = db.get_all_entries()
     if not entries:
         st.info("No QR codes have been generated yet. Upload a spreadsheet to get started.")
@@ -282,14 +321,7 @@ with tab3:
                 col1, col2 = st.columns([2, 1])
                 
                 with col1:
-                    st.markdown("#### 📤 Sender Information", help=None)
-                    if 'sender' in entry['data']:  # Check for backward compatibility
-                        sender = entry['data']['sender']
-                        st.write("**Name:**", sender['name'])
-                        st.write("**Address:**", sender['address'])
-                        st.write("**Location:**", f"{sender['city']}, {sender['state']} {sender['zip']}")
-                    
-                    st.markdown(f"#### 🎨 Artist Information • *{entry['timestamp']}*", help=None)
+                    st.markdown(f"#### 🎨 Artist Details • *{entry['timestamp']}*", help=None)
                     st.write("**Name:**", entry['data']['Artist Name'])
                     if entry['data']['Phone']:
                         st.write("**Phone:**", entry['data']['Phone'])
@@ -309,3 +341,41 @@ with tab3:
                     """
                     st.markdown(qr_html, unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
+
+# Settings tab
+with tab4:
+    # Update tab state
+    st.session_state.active_tab = 'settings'
+    st.session_state.scan_result = None
+    st.markdown("## Sender Settings")
+    st.markdown("Configure the sender information to be included in QR codes.")
+    
+    # Load current settings
+    settings = load_settings()
+    
+    # Create form for settings
+    with st.form("sender_settings"):
+        sender_name = st.text_input("Name", value=settings["sender"]["name"])
+        sender_address = st.text_input("Address Line 1", value=settings["sender"]["address"])
+        sender_city = st.text_input("City", value=settings["sender"]["city"])
+        sender_state = st.text_input("State", value=settings["sender"]["state"])
+        sender_zip = st.text_input("Zip Code", value=settings["sender"]["zip"])
+        
+        submit = st.form_submit_button("Save Settings")
+        
+        if submit:
+            # Validate all fields are filled
+            if all([sender_name, sender_address, sender_city, sender_state, sender_zip]):
+                new_settings = {
+                    "sender": {
+                        "name": sender_name,
+                        "address": sender_address,
+                        "city": sender_city,
+                        "state": sender_state,
+                        "zip": sender_zip
+                    }
+                }
+                save_settings(new_settings)
+                st.success("Settings saved successfully!")
+            else:
+                st.error("All fields are required. Please fill in all the information.")
