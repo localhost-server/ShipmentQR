@@ -75,7 +75,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Title and description
-st.markdown("## 🎨 Artist QR Code Generator", help=None)
+st.markdown("# 🎨 Artist QR Code Generator", help=None)
 
 from utils.qr_scanner import QRScanner
 from utils.ui_components import ScannerUI, SettingsUI, QRDisplayUI
