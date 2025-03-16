@@ -100,7 +100,7 @@ def save_settings(settings):
         json.dump(settings, f, indent=2)
 
 # Tabs for generate, scan, settings, and history
-tab1, tab2, tab3, tab4 = st.tabs(["Gen QR", "Scan QR", "Settings", "View QR"])
+tab1, tab2, tab3, tab4 = st.tabs(["Gen QR", "Scan QR", "View QR", "Settings"])
 
 with tab1:
     # Update tab state
@@ -326,23 +326,13 @@ with tab2:
                 st.session_state.camera_active = False
                 st.rerun()
 
-# Settings tab
+# View QR tab
 with tab3:
-    # Update tab state
-    st.session_state.active_tab = 'settings'
-    st.session_state.scan_result = None
-    
-    # Show settings interface
-    settings = load_settings()
-    SettingsUI.show_settings_interface(settings, save_settings)
-
-# History tab
-with tab4:
     # Update tab state
     st.session_state.active_tab = 'history'
     st.session_state.scan_result = None
     
-    st.markdown("## History")
+    st.markdown("## QR Code History")
     entries = db.get_all_entries()
     
     if not entries:
@@ -360,3 +350,13 @@ with tab4:
         # Display each QR code entry
         for entry in entries:
             QRDisplayUI.show_qr_entry(entry, generate_download_link)
+
+# Settings tab
+with tab4:
+    # Update tab state
+    st.session_state.active_tab = 'settings'
+    st.session_state.scan_result = None
+    
+    # Show settings interface
+    settings = load_settings()
+    SettingsUI.show_settings_interface(settings, save_settings)
