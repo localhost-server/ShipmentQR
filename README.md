@@ -1,12 +1,12 @@
-# Artist QR Code Generator
+# Shipping QR Code Generator
 
-A Streamlit web application that generates QR codes for shipping information, combining sender and artist details.
+A Streamlit web application that generates QR codes for shipping information with sender and recipient details.
 
 ## Features
 
 - Configure sender information in Settings
-- Upload CSV or Excel files for artist information
-- Generate QR codes with combined sender and artist details
+- Upload CSV or Excel files for recipient information
+- Generate QR codes with combined sender and recipient details
 - Download individual QR codes
 - View QR code history
 - Clear history functionality
@@ -22,8 +22,8 @@ CT: [City]
 STT: [State]
 CD: [Zip]
 
-AT:
-NM: [Artist Name]
+RC:
+NM: [Recipient Name]
 PH: [Phone if provided]
 ADD: [Address if provided]
 ```
@@ -39,7 +39,7 @@ ADD: [Address if provided]
 
 ## Required Spreadsheet Fields
 
-- Artist Name (required)
+- Recipient Name (required)
 - Phone (optional)
 - Address Fields (optional):
   - Address: Address Line 1
@@ -79,7 +79,7 @@ streamlit run app.py
    - Save settings
 
 4. Generate QR Codes:
-   - Upload your spreadsheet (CSV or Excel) with artist information
+   - Upload your spreadsheet (CSV or Excel) with recipient information
    - View generated QR codes immediately
    - Download individual QR codes
 
