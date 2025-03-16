@@ -6,6 +6,7 @@ from utils.db_handler import DatabaseHandler
 import uuid
 from datetime import datetime
 import json
+import cv2
 from pyzbar.pyzbar import decode
 import numpy as np
 from PIL import Image
@@ -83,10 +84,16 @@ from utils.ui_components import ScannerUI, SettingsUI, QRDisplayUI
 # Initialize session state
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = None
+if 'scan_result' not in st.session_state:
     st.session_state.scan_result = None
+if 'camera_active' not in st.session_state:
     st.session_state.camera_active = False
+if 'last_scan_time' not in st.session_state:
     st.session_state.last_scan_time = None
+if 'formatted_result' not in st.session_state:
     st.session_state.formatted_result = None
+if 'previous_tab' not in st.session_state:
+    st.session_state.previous_tab = None
 
 # Settings management
 def load_settings():
@@ -244,79 +251,166 @@ with tab2:
     # Update tab state
     st.session_state.active_tab = 'scan'
     
-    # Initialize session state variables if they don't exist
-    if 'camera_active' not in st.session_state:
+    # Check if we're switching to the scan tab
+    if st.session_state.previous_tab != 'scan':
         st.session_state.camera_active = False
-    if 'scan_result' not in st.session_state:
-        st.session_state.scan_result = None
+    st.session_state.previous_tab = 'scan'
     
     # Create placeholders for video and result
+    video_placeholder = st.empty()
     result_placeholder = st.empty()
     
-    # Camera component with Streamlit
-    camera_image = st.camera_input("Scan QR Code")
+    # Single scan button
+    if st.button("Scan", type="primary", use_container_width=True):
+        st.session_state.camera_active = True
+        st.rerun()
     
-    if camera_image is not None:
-        # Convert the image to PIL Image
-        img = Image.open(camera_image)
+    # Display message if camera is not active
+    if not st.session_state.camera_active:
+        with video_placeholder.container():
+            st.info("📸 Ready to scan a QR code? Click the Scan button to start.")
+            
+            # Show scanning tips
+            with st.expander("📝 Scanning Tips"):
+                st.markdown("""
+                - Ensure good lighting for better scanning
+                - Hold the QR code steady
+                - Keep the QR code within the camera frame
+                - Make sure the QR code is not damaged or obscured
+                - Try different angles if scanning fails
+                """)
+    
+    # Display the previous scan result if available
+    if st.session_state.scan_result and not st.session_state.camera_active:
+        # Parse and format QR data
+        qr_data = st.session_state.scan_result
+        lines = qr_data.split('\n')
+        formatted_data = []
         
-        # Convert to numpy array for pyzbar
-        img_array = np.array(img)
+        # Format sender info
+        formatted_data.append("Sender:")
+        for line in lines:
+            if line.startswith("SR:"):
+                continue
+            elif line.startswith("NM:"):
+                formatted_data.append(f"Name: {line[3:].strip()}")
+            elif line.startswith("ADD:"):
+                formatted_data.append(f"Address: {line[4:].strip()}")
+            elif line.startswith("CT:"):
+                formatted_data.append(f"City: {line[3:].strip()}")
+            elif line.startswith("STT:"):
+                formatted_data.append(f"State: {line[4:].strip()}")
+            elif line.startswith("CD:"):
+                formatted_data.append(f"ZipCode: {line[3:].strip()}")
+            elif line.startswith("AT:"):
+                formatted_data.append("\nArtist:")
+            elif line.startswith("PH:"):
+                formatted_data.append(f"Phone: {line[3:].strip()}")
+            # Handle artist name and address
+            elif line.startswith("NM:") and formatted_data[-1] == "\nArtist:":
+                formatted_data.append(f"Name: {line[3:].strip()}")
+            elif line.startswith("ADD:") and "\nArtist:" in formatted_data:
+                formatted_data.append(f"Address: {line[4:].strip()}")
         
-        # Detect QR codes
-        decoded_objects = decode(img_array)
+        formatted_result = "\n".join(formatted_data)
+        result_placeholder.subheader("QR Code Content:")
+        result_placeholder.code(formatted_result)
+    
+    # Camera logic
+    if st.session_state.camera_active:
+        cap = cv2.VideoCapture(0)
         
-        if decoded_objects:
-            for obj in decoded_objects:
-                # Get QR code data
-                qr_data = obj.data.decode('utf-8')
-                
-                # Store in session state
-                st.session_state.scan_result = qr_data
-                
-                # Parse and format QR data
-                lines = qr_data.split('\n')
-                formatted_data = []
-                
-                # Format sender info
-                formatted_data.append("Sender:")
-                for line in lines:
-                    if line.startswith("SR:"):
-                        continue
-                    elif line.startswith("NM:"):
-                        formatted_data.append(f"Name: {line[3:].strip()}")
-                    elif line.startswith("ADD:"):
-                        formatted_data.append(f"Address: {line[4:].strip()}")
-                    elif line.startswith("CT:"):
-                        formatted_data.append(f"City: {line[3:].strip()}")
-                    elif line.startswith("STT:"):
-                        formatted_data.append(f"State: {line[4:].strip()}")
-                    elif line.startswith("CD:"):
-                        formatted_data.append(f"ZipCode: {line[3:].strip()}")
-                    elif line.startswith("AT:"):
-                        formatted_data.append("\nArtist:")
-                    elif line.startswith("PH:"):
-                        formatted_data.append(f"Phone: {line[3:].strip()}")
-                    # Handle artist name and address
-                    elif line.startswith("NM:") and formatted_data[-1] == "\nArtist:":
-                        formatted_data.append(f"Name: {line[3:].strip()}")
-                    elif line.startswith("ADD:") and "\nArtist:" in formatted_data:
-                        formatted_data.append(f"Address: {line[4:].strip()}")
-                
-                formatted_result = "\n".join(formatted_data)
-                
-                # Show result
-                result_placeholder.subheader("QR Code Content:")
-                result_placeholder.code(formatted_result)
-                break
+        # Check if camera opened successfully
+        if not cap.isOpened():
+            st.error("Error: Could not open camera.")
+            st.session_state.camera_active = False
         else:
-            st.info("No QR code detected. Please try again.")
+            try:
+                while st.session_state.camera_active:
+                    ret, frame = cap.read()
+                    if not ret:
+                        st.error("Failed to capture image from webcam")
+                        break
+                    
+                    # Convert to RGB for display
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # Detect QR codes
+                    decoded_objects = decode(rgb_frame)
+                    
+                    if decoded_objects:
+                        for obj in decoded_objects:
+                            # Get QR code data
+                            qr_data = obj.data.decode('utf-8')
+                            
+                            # Draw boundary
+                            points = obj.polygon
+                            if len(points) > 4:
+                                hull = cv2.convexHull(np.array([point for point in points], dtype=np.float32))
+                                points = hull
+                            
+                            n = len(points)
+                            # Draw green boundary
+                            for j in range(n):
+                                cv2.line(rgb_frame, tuple(points[j]), tuple(points[(j+1)%n]), (0,255,0), 3)
+                            
+                            # Update display with boundary
+                            video_placeholder.image(rgb_frame, channels="RGB", use_column_width=True)
+                            
+                            # Store in session state
+                            st.session_state.scan_result = qr_data
+                            st.session_state.camera_active = False
+                            
+                            # Parse and format QR data
+                            lines = qr_data.split('\n') 
+                            formatted_data = []
+                            
+                            # Format sender info
+                            formatted_data.append("Sender:")
+                            for line in lines:
+                                if line.startswith("SR:"):
+                                    continue
+                                elif line.startswith("NM:"):
+                                    formatted_data.append(f"Name: {line[3:].strip()}")
+                                elif line.startswith("ADD:"):
+                                    formatted_data.append(f"Address: {line[4:].strip()}")
+                                elif line.startswith("CT:"):
+                                    formatted_data.append(f"City: {line[3:].strip()}")
+                                elif line.startswith("STT:"):
+                                    formatted_data.append(f"State: {line[4:].strip()}")
+                                elif line.startswith("CD:"):
+                                    formatted_data.append(f"ZipCode: {line[3:].strip()}")
+                                elif line.startswith("AT:"):
+                                    formatted_data.append("\nArtist:")
+                                elif line.startswith("PH:"):
+                                    formatted_data.append(f"Phone: {line[3:].strip()}")
+                                # Handle artist name and address
+                                elif line.startswith("NM:") and formatted_data[-1] == "\nArtist:":
+                                    formatted_data.append(f"Name: {line[3:].strip()}")
+                                elif line.startswith("ADD:") and "\nArtist:" in formatted_data:
+                                    formatted_data.append(f"Address: {line[4:].strip()}")
+                            
+                            formatted_result = "\n".join(formatted_data)
+                            
+                            # Show result immediately
+                            result_placeholder.subheader("QR Code Content:")
+                            result_placeholder.code(formatted_result)
+                            break
+                    else:
+                        # Just display the frame if no QR code is detected
+                        video_placeholder.image(rgb_frame, channels="RGB", use_column_width=True)
+            
+            finally:
+                cap.release()
 
 # View QR tab
 with tab3:
     # Update tab state
     st.session_state.active_tab = 'history'
     st.session_state.scan_result = None
+    if st.session_state.previous_tab == 'scan':
+        st.session_state.camera_active = False
+    st.session_state.previous_tab = 'history'
     
     st.markdown("## QR Code History")
     entries = db.get_all_entries()
@@ -342,6 +436,9 @@ with tab4:
     # Update tab state
     st.session_state.active_tab = 'settings'
     st.session_state.scan_result = None
+    if st.session_state.previous_tab == 'scan':
+        st.session_state.camera_active = False
+    st.session_state.previous_tab = 'settings'
     
     # Show settings interface
     settings = load_settings()
