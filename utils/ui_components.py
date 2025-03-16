@@ -14,9 +14,6 @@ class ScannerUI:
             if not st.session_state.camera_active:
                 with video_placeholder.container():
                     st.info("📸 Ready to scan a QR code? Click the button below to start.")
-                    if st.button("📷 Start Camera", type="primary", use_container_width=True):
-                        st.session_state.camera_active = True
-                        st.rerun()
                     
                     # Show scanning tips
                     with st.expander("📝 Scanning Tips"):
@@ -27,10 +24,13 @@ class ScannerUI:
                         - Make sure the QR code is not damaged or obscured
                         - Try different angles if scanning fails
                         """)
+                    
+                    # Removed button from here as it's moved to the main tab code
+                    
                 return False
             
             return True
-
+    
 class SettingsUI:
     @staticmethod
     def show_settings_interface(current_settings, save_callback):
@@ -72,14 +72,6 @@ class QRDisplayUI:
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Sender Information
-            st.markdown("#### 📤 Sender Information", help=None)
-            if 'sender' in entry['data']:
-                sender = entry['data']['sender']
-                st.write("**Name:**", sender['name'])
-                st.write("**Address:**", sender['address'])
-                st.write("**Location:**", f"{sender['city']}, {sender['state']} {sender['zip']}")
-            
             # Artist Information
             timestamp_text = f" • *{entry['timestamp']}*" if 'timestamp' in entry else ""
             st.markdown(f"#### 🎨 Artist Information{timestamp_text}", help=None)
