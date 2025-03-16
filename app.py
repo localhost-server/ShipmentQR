@@ -31,7 +31,7 @@ st.markdown("""
         padding: 0;
     }
     div[data-testid="stMarkdown"] > div {
-        line-height: 0.5;
+        line-height: 0.8;
         margin: 0;
         padding: 0;
     }
