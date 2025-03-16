@@ -269,6 +269,22 @@ with tab2:
         else:
             if not st.session_state.camera_active:
                 st.info("📸 Click the button below to start scanning")
+                st.markdown("""
+                    <style>
+                        .guide-text {
+                            text-align: center;
+                            padding: 1rem;
+                            background: #f0f2f6;
+                            border-radius: 4px;
+                            margin-bottom: 1rem;
+                        }
+                    </style>
+                    <div class="guide-text">
+                        <p>🎯 Hold the QR code steady and centered in the camera view</p>
+                        <p>📱 Keep your device about 6-8 inches away from the code</p>
+                        <p>💡 Ensure good lighting and minimal glare</p>
+                    </div>
+                """, unsafe_allow_html=True)
                 if st.button("Start Camera", use_container_width=True):
                     st.session_state.camera_active = True
                     st.experimental_rerun()
@@ -277,6 +293,15 @@ with tab2:
                 camera_container = st.container()
                 with camera_container:
                     st.markdown("""
+                        <style>
+                            [data-testid="stCamera"] > div {
+                                min-height: 400px !important;
+                            }
+                            [data-testid="stCamera"] video {
+                                min-height: 400px !important;
+                                object-fit: cover;
+                            }
+                        </style>
                         <div class="camera-container">
                             <div class="scan-line"></div>
                             <div class="scan-overlay"></div>
