@@ -233,7 +233,7 @@ with tab2:
             st.session_state.scan_result = results[0]
             st.session_state.formatted_result = QRScanner.format_scan_result(results[0])
             st.session_state.camera_active = False
-            st.experimental_rerun()
+            st.rerun()
         elif error:
             # Don't show the "no QR code found" message too frequently
             current_time = time.time()

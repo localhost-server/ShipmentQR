@@ -33,12 +33,12 @@ class ScannerUI:
             if st.button("🔄 New Scan", type="primary", use_container_width=True):
                 st.session_state.scan_result = None
                 st.session_state.camera_active = True
-                st.experimental_rerun()
+                st.rerun()
         with col_b:
             if st.button("❌ Exit Scanner", type="secondary", use_container_width=True):
                 st.session_state.scan_result = None
                 st.session_state.camera_active = False
-                st.experimental_rerun()
+                st.rerun()
     
     @staticmethod
     def _show_scanner_controls():
@@ -48,7 +48,7 @@ class ScannerUI:
             if st.button("📷 Start Camera", type="primary", use_container_width=True):
                 st.session_state.camera_active = True
                 st.session_state.last_scan_time = time.time()
-                st.experimental_rerun()
+                st.rerun()
             
             # Show scanning tips
             with st.expander("📝 Scanning Tips"):
@@ -67,7 +67,7 @@ class ScannerUI:
             # Stop camera button
             if st.button("⏹️ Stop Camera", type="secondary", use_container_width=True):
                 st.session_state.camera_active = False
-                st.experimental_rerun()
+                st.rerun()
             return True
 
 class SettingsUI:
