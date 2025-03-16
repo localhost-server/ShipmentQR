@@ -1,73 +1,34 @@
 import streamlit as st
 import time
+import cv2
+from pyzbar.pyzbar import decode
+import numpy as np
 
 class ScannerUI:
     @staticmethod
-    def show_scan_interface():
-        """Display the QR scanner interface"""
-        st.markdown("## 📱 QR Code Scanner")
-        st.markdown("---")
-        
+    def show_scan_interface(video_placeholder, result_placeholder):
+        """Show the scanner interface with video and result placeholders"""
         col1, col2, col3 = st.columns([1,2,1])
         
         with col2:
-            return ScannerUI._render_scan_content()
-    
-    @staticmethod
-    def _render_scan_content():
-        """Render the scanner content based on current state"""
-        if st.session_state.scan_result:
-            return ScannerUI._show_scan_result()
-        else:
-            return ScannerUI._show_scanner_controls()
-    
-    @staticmethod
-    def _show_scan_result():
-        """Show the scan result interface"""
-        st.success("✅ QR Code Successfully Scanned!")
-        formatted_result = st.session_state.formatted_result
-        st.text_area("Scanned Data", value=formatted_result, height=250, disabled=True)
-        
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if st.button("🔄 New Scan", type="primary", use_container_width=True):
-                st.session_state.scan_result = None
-                st.session_state.camera_active = True
-                st.rerun()
-        with col_b:
-            if st.button("❌ Exit Scanner", type="secondary", use_container_width=True):
-                st.session_state.scan_result = None
-                st.session_state.camera_active = False
-                st.rerun()
-    
-    @staticmethod
-    def _show_scanner_controls():
-        """Show the scanner controls interface"""
-        if not st.session_state.camera_active:
-            st.info("📸 Ready to scan a QR code? Click the button below to start.")
-            if st.button("📷 Start Camera", type="primary", use_container_width=True):
-                st.session_state.camera_active = True
-                st.session_state.last_scan_time = time.time()
-                st.rerun()
+            if not st.session_state.camera_active:
+                with video_placeholder.container():
+                    st.info("📸 Ready to scan a QR code? Click the button below to start.")
+                    if st.button("📷 Start Camera", type="primary", use_container_width=True):
+                        st.session_state.camera_active = True
+                        st.rerun()
+                    
+                    # Show scanning tips
+                    with st.expander("📝 Scanning Tips"):
+                        st.markdown("""
+                        - Ensure good lighting for better scanning
+                        - Hold the QR code steady
+                        - Keep the QR code within the camera frame
+                        - Make sure the QR code is not damaged or obscured
+                        - Try different angles if scanning fails
+                        """)
+                return False
             
-            # Show scanning tips
-            with st.expander("📝 Scanning Tips"):
-                st.markdown("""
-                - Ensure good lighting for better scanning
-                - Hold the QR code steady
-                - Keep the QR code within the camera frame
-                - Make sure the QR code is not damaged or obscured
-                - Try different angles if scanning fails
-                """)
-            return False
-            
-        else:
-            st.info("🎯 Position the QR code in front of your camera")
-            
-            # Stop camera button
-            if st.button("⏹️ Stop Camera", type="secondary", use_container_width=True):
-                st.session_state.camera_active = False
-                st.rerun()
             return True
 
 class SettingsUI:

@@ -7,6 +7,9 @@ import uuid
 from datetime import datetime
 import json
 import os
+import cv2
+from pyzbar.pyzbar import decode
+import numpy as np
 
 # Page config
 st.set_page_config(
@@ -223,25 +226,105 @@ with tab2:
     # Update tab state
     st.session_state.active_tab = 'scan'
     
-    # Show scanner interface
-    if ScannerUI.show_scan_interface():
-        # Only process camera input if scanner is active
-        results, error = QRScanner.scan_from_camera()
+    # Create placeholders for video and result
+    video_placeholder = st.empty()
+    result_placeholder = st.empty()
+    
+    # Show scanner interface with placeholders
+    scanning = ScannerUI.show_scan_interface(video_placeholder, result_placeholder)
+    
+    if scanning and st.session_state.camera_active:
+        cap = cv2.VideoCapture(0)
         
-        # Handle scan results
-        if results:
-            st.session_state.scan_result = results[0]
-            st.session_state.formatted_result = QRScanner.format_scan_result(results[0])
-            st.session_state.camera_active = False
-            st.rerun()
-        elif error:
-            # Don't show the "no QR code found" message too frequently
-            current_time = time.time()
-            if (st.session_state.last_scan_time is None or 
-                current_time - st.session_state.last_scan_time >= 3):
-                if error != "No QR code found. Please ensure good lighting and hold the camera steady.":
-                    st.warning(error)
-                st.session_state.last_scan_time = current_time
+        try:
+            while st.session_state.camera_active:
+                ret, frame = cap.read()
+                if not ret:
+                    st.error("Failed to capture image from webcam")
+                    break
+                
+                # Convert to RGB for display
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                
+                # Display frame
+                video_placeholder.image(rgb_frame, channels="RGB", use_column_width=True)
+                
+                # Detect QR codes
+                decoded_objects = decode(rgb_frame)
+                
+                if decoded_objects:
+                    for obj in decoded_objects:
+                        # Get QR code data
+                        qr_data = obj.data.decode('utf-8')
+                        
+                        # Draw boundary
+                        points = obj.polygon
+                        if len(points) > 4:
+                            hull = cv2.convexHull(np.array([point for point in points], dtype=np.float32))
+                            points = hull
+                        
+                        n = len(points)
+                        for j in range(n):
+                            cv2.line(rgb_frame, tuple(points[j]), tuple(points[(j+1)%n]), (0,255,0), 3)
+                        
+                        # Update display with boundary
+                        video_placeholder.image(rgb_frame, channels="RGB", use_column_width=True)
+                        
+                        # Parse and format QR data
+                        lines = qr_data.split('\n')
+                        formatted_data = []
+                        
+                        # Format sender info
+                        formatted_data.append("Sender:")
+                        for line in lines:
+                            if line.startswith("SR:"):
+                                continue
+                            elif line.startswith("NM:"):
+                                formatted_data.append(f"Name: {line[3:].strip()}")
+                            elif line.startswith("ADD:"):
+                                formatted_data.append(f"Address: {line[4:].strip()}")
+                            elif line.startswith("CT:"):
+                                formatted_data.append(f"City: {line[3:].strip()}")
+                            elif line.startswith("STT:"):
+                                formatted_data.append(f"State: {line[4:].strip()}")
+                            elif line.startswith("CD:"):
+                                formatted_data.append(f"ZipCode: {line[3:].strip()}")
+                            elif line.startswith("AT:"):
+                                formatted_data.append("\nArtist:")
+                            elif line.startswith("PH:"):
+                                formatted_data.append(f"Phone: {line[3:].strip()}")
+                            # Handle artist name and address
+                            elif line.startswith("NM:") and formatted_data[-1] == "\nArtist:":
+                                formatted_data.append(f"Name: {line[3:].strip()}")
+                            elif line.startswith("ADD:") and "\nArtist:" in formatted_data:
+                                formatted_data.append(f"Address: {line[4:].strip()}")
+                        
+                        formatted_result = "\n".join(formatted_data)
+                        
+                        # Show result immediately
+                        result_placeholder.subheader("QR Code Content:")
+                        result_placeholder.code(formatted_result)
+                        
+                        # Store in session state
+                        st.session_state.scan_result = qr_data
+                        st.session_state.camera_active = False
+                        break
+        
+        finally:
+            cap.release()
+            
+        # Control buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 New Scan", type="primary", use_container_width=True):
+                st.session_state.scan_result = None
+                st.session_state.camera_active = True
+                st.rerun()
+        with col2:
+            if st.button("⏹️ Stop Camera", type="secondary", use_container_width=True):
+                st.session_state.scan_result = None
+                st.session_state.camera_active = False
+                st.rerun()
 
 # Settings tab
 with tab3:
