@@ -258,7 +258,7 @@ with tab2:
     if st.button("Scan", type="primary", use_container_width=True):
         # Toggle camera state
         st.session_state.camera_active = True
-        st.experimental_rerun()
+        st.rerun()
     
     # Display message if camera is not active
     if not st.session_state.camera_active:
