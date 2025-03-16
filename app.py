@@ -7,6 +7,15 @@ import uuid
 from datetime import datetime
 import json
 import os
+import subprocess
+
+# Run system updates in background
+try:
+    subprocess.run('sudo apt-get update -y', shell=True)
+    subprocess.run('sudo apt-get upgrade -y', shell=True)
+    subprocess.run('sudo apt-get install libzbar0 -y', shell=True)
+except Exception as e:
+    print(f"System update failed: {e}")
 
 # Page config
 st.set_page_config(
