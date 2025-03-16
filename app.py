@@ -7,15 +7,6 @@ import uuid
 from datetime import datetime
 import json
 import os
-import subprocess
-
-# Run system updates in background
-try:
-    subprocess.run('sudo apt-get update -y', shell=True)
-    subprocess.run('sudo apt-get upgrade -y', shell=True)
-    subprocess.run('sudo apt-get install libzbar0 -y', shell=True)
-except Exception as e:
-    print(f"System update failed: {e}")
 
 # Page config
 st.set_page_config(
@@ -277,7 +268,8 @@ with tab2:
                 st.experimental_rerun()
         else:
             if not st.session_state.camera_active:
-                if st.button("Start Camera"):
+                st.info("📸 Click the button below to start scanning")
+                if st.button("Start Camera", use_container_width=True):
                     st.session_state.camera_active = True
                     st.experimental_rerun()
             else:
@@ -290,20 +282,28 @@ with tab2:
                             <div class="scan-overlay"></div>
                     """, unsafe_allow_html=True)
                     
+                    scanning_spinner = st.empty()
+                    with scanning_spinner:
+                        st.info("🔍 Scanning for QR code...")
+                    
                     results, error = QRScanner.scan_from_camera()
                     
                     st.markdown("</div>", unsafe_allow_html=True)
                     
                     if results:
+                        scanning_spinner.success("✅ QR Code detected!")
                         st.session_state.scan_result = results[0]
                         st.session_state.camera_active = False
                         st.experimental_rerun()
-                    elif error and error != "No QR code found in camera frame":
-                        st.error(error)
+                    elif error:
+                        if error != "No QR code found in camera frame":
+                            scanning_spinner.error(error)
                     
-                    if st.button("Stop Camera"):
-                        st.session_state.camera_active = False
-                        st.experimental_rerun()
+                    col1, col2 = st.columns([4, 1])
+                    with col2:
+                        if st.button("Stop Camera", type="secondary"):
+                            st.session_state.camera_active = False
+                            st.experimental_rerun()
 
 # View QR tab
 with tab3:

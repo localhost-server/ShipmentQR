@@ -23,15 +23,30 @@ class QRScanner:
                 return None, None
 
             # Process the image
-            bytes_data = camera_image.getvalue()
-            nparr = np.frombuffer(bytes_data, np.uint8)
-            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
-            # Convert to grayscale for QR detection
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            # Scan for QR codes
-            qr_codes = decode(gray)
+            try:
+                bytes_data = camera_image.getvalue()
+                nparr = np.frombuffer(bytes_data, np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                
+                if frame is None:
+                    return None, "Failed to process camera image"
+                
+                # Convert to grayscale for QR detection
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                
+                # Apply image processing to improve QR detection
+                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                threshold = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+                
+                # Scan for QR codes
+                qr_codes = decode(threshold)
+                if not qr_codes:
+                    # Try original grayscale if threshold doesn't work
+                    qr_codes = decode(gray)
+                    
+            except Exception as e:
+                st.error(f"Image processing error: {str(e)}")
+                return None, f"Failed to process image: {str(e)}"
             
             if not qr_codes:
                 return None, "No QR code found in camera frame"
@@ -39,10 +54,24 @@ class QRScanner:
             # Process results
             results = []
             for qr_code in qr_codes:
-                data = qr_code.data.decode('utf-8')
-                results.append(QRScanner._parse_qr_data(data))
+                try:
+                    data = qr_code.data.decode('utf-8')
+                    if not data:
+                        continue
+                        
+                    parsed_data = QRScanner._parse_qr_data(data)
+                    if parsed_data and not 'error' in parsed_data:
+                        results.append(parsed_data)
+                    else:
+                        st.warning(f"Failed to parse QR data: {parsed_data.get('error', 'Unknown error')}")
+                        
+                except Exception as e:
+                    st.error(f"QR decode error: {str(e)}")
+                    continue
             
-            return results, None
+            if results:
+                return results, None
+            return None, "Could not decode QR code data"
 
         except Exception as e:
             return None, f"Error scanning QR code: {str(e)}"
