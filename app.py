@@ -6,11 +6,10 @@ from utils.db_handler import DatabaseHandler
 import uuid
 from datetime import datetime
 import json
+import os
 import cv2
 from pyzbar.pyzbar import decode
 import numpy as np
-from PIL import Image
-import io
 
 # Page config
 st.set_page_config(
@@ -84,16 +83,10 @@ from utils.ui_components import ScannerUI, SettingsUI, QRDisplayUI
 # Initialize session state
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = None
-if 'scan_result' not in st.session_state:
     st.session_state.scan_result = None
-if 'camera_active' not in st.session_state:
     st.session_state.camera_active = False
-if 'last_scan_time' not in st.session_state:
     st.session_state.last_scan_time = None
-if 'formatted_result' not in st.session_state:
     st.session_state.formatted_result = None
-if 'previous_tab' not in st.session_state:
-    st.session_state.previous_tab = None
 
 # Settings management
 def load_settings():
@@ -251,39 +244,22 @@ with tab2:
     # Update tab state
     st.session_state.active_tab = 'scan'
     
-    # Check if we're switching to the scan tab
-    if st.session_state.previous_tab != 'scan':
+    # Initialize session state variables if they don't exist
+    if 'camera_active' not in st.session_state:
         st.session_state.camera_active = False
-    st.session_state.previous_tab = 'scan'
+    if 'scan_result' not in st.session_state:
+        st.session_state.scan_result = None
+    if 'app_state' not in st.session_state:
+        st.session_state.app_state = 'idle'  # Possible states: 'idle', 'scanning', 'result_ready'
+    if 'camera_key' not in st.session_state:
+        st.session_state.camera_key = 0  # Initialize camera key counter
     
     # Create placeholders for video and result
     video_placeholder = st.empty()
     result_placeholder = st.empty()
     
-    # Single scan button
-    if st.button("Scan", type="primary", use_container_width=True):
-        st.session_state.camera_active = True
-        st.rerun()
-    
-    # Display message if camera is not active
-    if not st.session_state.camera_active:
-        with video_placeholder.container():
-            st.info("📸 Ready to scan a QR code? Click the Scan button to start.")
-            
-            # Show scanning tips
-            with st.expander("📝 Scanning Tips"):
-                st.markdown("""
-                - Ensure good lighting for better scanning
-                - Hold the QR code steady
-                - Keep the QR code within the camera frame
-                - Make sure the QR code is not damaged or obscured
-                - Try different angles if scanning fails
-                """)
-    
-    # Display the previous scan result if available
-    if st.session_state.scan_result and not st.session_state.camera_active:
-        # Parse and format QR data
-        qr_data = st.session_state.scan_result
+    # Function to process QR code data
+    def process_qr_data(qr_data):
         lines = qr_data.split('\n')
         formatted_data = []
         
@@ -312,25 +288,42 @@ with tab2:
             elif line.startswith("ADD:") and "\nArtist:" in formatted_data:
                 formatted_data.append(f"Address: {line[4:].strip()}")
         
-        formatted_result = "\n".join(formatted_data)
-        result_placeholder.subheader("QR Code Content:")
-        result_placeholder.code(formatted_result)
+        return "\n".join(formatted_data)
     
-    # Camera logic
-    if st.session_state.camera_active:
-        cap = cv2.VideoCapture(0)
-        
-        # Check if camera opened successfully
-        if not cap.isOpened():
-            st.error("Error: Could not open camera.")
-            st.session_state.camera_active = False
-        else:
-            try:
-                while st.session_state.camera_active:
-                    ret, frame = cap.read()
-                    if not ret:
-                        st.error("Failed to capture image from webcam")
-                        break
+    # Function to reset the app state completely
+    def reset_app():
+        st.session_state.app_state = 'idle'
+        st.session_state.camera_active = False
+        st.session_state.scan_result = None
+        # Increment camera key to force a new camera instance
+        st.session_state.camera_key += 1
+    
+    # Scan control buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Camera Scan", type="primary", use_container_width=True):
+            st.session_state.app_state = 'scanning'
+            st.session_state.camera_active = True
+            # Increment camera key to force a new camera instance
+            st.session_state.camera_key += 1
+    
+    with col2:
+        if st.button("Reset", use_container_width=True):
+            reset_app()
+            video_placeholder.empty()
+            result_placeholder.empty()
+    
+    # Display based on app state
+    if st.session_state.app_state == 'idle':
+        # Show options when idle
+        with video_placeholder.container():
+            
+            if uploaded_file is not None:
+                try:
+                    # Process uploaded image
+                    image_bytes = uploaded_file.getvalue()
+                    image_array = np.frombuffer(image_bytes, np.uint8)
+                    frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
                     
                     # Convert to RGB for display
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -339,8 +332,65 @@ with tab2:
                     decoded_objects = decode(rgb_frame)
                     
                     if decoded_objects:
-                        for obj in decoded_objects:
-                            # Get QR code data
+                        obj = decoded_objects[0]  # Get the first QR code
+                        
+                        # Get QR code data
+                        qr_data = obj.data.decode('utf-8')
+                        
+                        # Draw boundary
+                        points = obj.polygon
+                        if len(points) > 4:
+                            hull = cv2.convexHull(np.array([point for point in points], dtype=np.float32))
+                            points = hull
+                        
+                        n = len(points)
+                        for j in range(n):
+                            cv2.line(rgb_frame, tuple(points[j]), tuple(points[(j+1)%n]), (0,255,0), 3)
+                        
+                        # Show image with boundary
+                        st.image(rgb_frame, channels="RGB", use_column_width=True)
+                        
+                        # Store in session state
+                        st.session_state.scan_result = qr_data
+                        st.session_state.app_state = 'result_ready'
+                        
+                        try:
+                            # Format and display result
+                            formatted_result = process_qr_data(qr_data)
+                            result_placeholder.subheader("QR Code Content:")
+                            result_placeholder.code(formatted_result)
+                        except Exception as e:
+                            st.error(f"Failed to process QR code data: {str(e)}")
+                    else:
+                        st.error("No QR code detected in the uploaded image. Please try a different image.")
+                except Exception as e:
+                    st.error(f"Error processing image: {str(e)}")
+    
+    # In the scanning section
+    elif st.session_state.app_state == 'scanning' and st.session_state.camera_active:
+        # Handle camera scanning
+        with video_placeholder.container():
+            try:
+                # Create a temporary container for the camera that can be replaced
+                camera_container = st.container()
+                
+                with camera_container:
+                    # Use a dynamic key for the camera input to force a new instance
+                    camera_key = f"qr_scanner_{st.session_state.camera_key}"
+                    camera_input = st.camera_input(label="Scan QR Code", key=camera_key)
+                    
+                    if camera_input:
+                        # Process the image
+                        image_bytes = camera_input.getvalue()
+                        image_array = np.frombuffer(image_bytes, np.uint8)
+                        frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        
+                        # Detect QR codes
+                        decoded_objects = decode(rgb_frame)
+                        
+                        if decoded_objects:
+                            obj = decoded_objects[0]  # Get the first QR code
                             qr_data = obj.data.decode('utf-8')
                             
                             # Draw boundary
@@ -350,67 +400,54 @@ with tab2:
                                 points = hull
                             
                             n = len(points)
-                            # Draw green boundary
                             for j in range(n):
                                 cv2.line(rgb_frame, tuple(points[j]), tuple(points[(j+1)%n]), (0,255,0), 3)
                             
-                            # Update display with boundary
+                            # Clear the camera input and show only the captured image
+                            camera_container.empty()  # Clear the camera input
                             video_placeholder.image(rgb_frame, channels="RGB", use_column_width=True)
                             
-                            # Store in session state
+                            # Rest of the code for processing the QR data
                             st.session_state.scan_result = qr_data
                             st.session_state.camera_active = False
+                            st.session_state.app_state = 'result_ready'
                             
-                            # Parse and format QR data
-                            lines = qr_data.split('\n') 
-                            formatted_data = []
-                            
-                            # Format sender info
-                            formatted_data.append("Sender:")
-                            for line in lines:
-                                if line.startswith("SR:"):
-                                    continue
-                                elif line.startswith("NM:"):
-                                    formatted_data.append(f"Name: {line[3:].strip()}")
-                                elif line.startswith("ADD:"):
-                                    formatted_data.append(f"Address: {line[4:].strip()}")
-                                elif line.startswith("CT:"):
-                                    formatted_data.append(f"City: {line[3:].strip()}")
-                                elif line.startswith("STT:"):
-                                    formatted_data.append(f"State: {line[4:].strip()}")
-                                elif line.startswith("CD:"):
-                                    formatted_data.append(f"ZipCode: {line[3:].strip()}")
-                                elif line.startswith("AT:"):
-                                    formatted_data.append("\nArtist:")
-                                elif line.startswith("PH:"):
-                                    formatted_data.append(f"Phone: {line[3:].strip()}")
-                                # Handle artist name and address
-                                elif line.startswith("NM:") and formatted_data[-1] == "\nArtist:":
-                                    formatted_data.append(f"Name: {line[3:].strip()}")
-                                elif line.startswith("ADD:") and "\nArtist:" in formatted_data:
-                                    formatted_data.append(f"Address: {line[4:].strip()}")
-                            
-                            formatted_result = "\n".join(formatted_data)
-                            
-                            # Show result immediately
-                            result_placeholder.subheader("QR Code Content:")
-                            result_placeholder.code(formatted_result)
-                            break
-                    else:
-                        # Just display the frame if no QR code is detected
-                        video_placeholder.image(rgb_frame, channels="RGB", use_column_width=True)
-            
-            finally:
-                cap.release()
+                            # Format and display result
+                            try:
+                                formatted_result = process_qr_data(qr_data)
+                                result_placeholder.subheader("QR Code Content:")
+                                result_placeholder.code(formatted_result)
+                            except Exception as e:
+                                st.error(f"Failed to process QR code data: {str(e)}")
+                        else:
+                            st.info("Position QR code in view. No QR code detected yet.")
+                
+            except Exception as e:
+                st.error(f"Camera error: {str(e)}")
+                st.session_state.camera_active = False
+                st.session_state.app_state = 'idle'
+                st.info("Camera access failed. Please try uploading an image instead.")
+                    
+    elif st.session_state.app_state == 'result_ready':
+        # Display the previous scan result
+        if st.session_state.scan_result:
+            try:
+                # Format and display
+                formatted_result = process_qr_data(st.session_state.scan_result)
+                result_placeholder.subheader("QR Code Content:")
+                result_placeholder.code(formatted_result)
+                
+                # Option to scan again
+                if st.button("Scan Another", use_container_width=True):
+                    reset_app()  # Use the reset function to ensure consistent state reset
+            except Exception as e:
+                st.error(f"Error displaying results: {str(e)}")
 
 # View QR tab
 with tab3:
     # Update tab state
     st.session_state.active_tab = 'history'
     st.session_state.scan_result = None
-    if st.session_state.previous_tab == 'scan':
-        st.session_state.camera_active = False
-    st.session_state.previous_tab = 'history'
     
     st.markdown("## QR Code History")
     entries = db.get_all_entries()
@@ -436,9 +473,6 @@ with tab4:
     # Update tab state
     st.session_state.active_tab = 'settings'
     st.session_state.scan_result = None
-    if st.session_state.previous_tab == 'scan':
-        st.session_state.camera_active = False
-    st.session_state.previous_tab = 'settings'
     
     # Show settings interface
     settings = load_settings()

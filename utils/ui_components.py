@@ -13,20 +13,7 @@ class ScannerUI:
         with col2:
             if not st.session_state.camera_active:
                 with video_placeholder.container():
-                    st.info("📸 Ready to scan a QR code? Click the button below to start.")
-                    
-                    # Show scanning tips
-                    with st.expander("📝 Scanning Tips"):
-                        st.markdown("""
-                        - Ensure good lighting for better scanning
-                        - Hold the QR code steady
-                        - Keep the QR code within the camera frame
-                        - Make sure the QR code is not damaged or obscured
-                        - Try different angles if scanning fails
-                        """)
-                    
-                    # Removed button from here as it's moved to the main tab code
-                    
+                    st.empty()  # Keep an empty container
                 return False
             
             return True
