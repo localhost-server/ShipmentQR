@@ -1,3 +1,0 @@
-zbar-tools
-libzbar0
-libzbar-dev

@@ -1,6 +1,4 @@
 import sqlite3
-import json
-from typing import List, Dict, Optional
 from datetime import datetime
 
 class DatabaseHandler:
@@ -30,7 +28,7 @@ class DatabaseHandler:
         conn.commit()
         conn.close()
 
-    def save_entry(self, entry: Dict) -> bool:
+    def save_entry(self, entry: dict) -> bool:
         """Save QR code entry to database."""
         try:
             conn = sqlite3.connect(self.db_path)
@@ -61,7 +59,7 @@ class DatabaseHandler:
         finally:
             conn.close()
 
-    def get_all_entries(self) -> List[Dict]:
+    def get_all_entries(self) -> list:
         """Retrieve all QR code entries."""
         try:
             conn = sqlite3.connect(self.db_path)
