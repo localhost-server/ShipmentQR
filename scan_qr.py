@@ -18,8 +18,24 @@ def detect_printer():
     global printer_available, printer_info
     
     try:
-        # Standard vendor/product IDs for common thermal printers
-        # You may need to adjust these values for your specific Neiko PL70e-BT2
+        # Specific Neiko/Beeprt PL70e-BT vendor/product ID from system_profiler output
+        neiko_vendor_id = 0x09c6  # Vendor ID for your Beeprt Printer
+        neiko_product_id = 0x0426  # Product ID for your printer
+        
+        # Try the specific printer first
+        device = usb.core.find(idVendor=neiko_vendor_id, idProduct=neiko_product_id)
+        if device is not None:
+            logger.info(f"Found Neiko/Beeprt PL70e-BT printer with vendor ID: {neiko_vendor_id:04x}, product ID: {neiko_product_id:04x}")
+            printer_info = {
+                'vendor_id': neiko_vendor_id,
+                'product_id': neiko_product_id,
+                'in_ep': 0x81,  # Default input endpoint
+                'out_ep': 0x03  # Default output endpoint
+            }
+            printer_available = True
+            return True
+            
+        # Fall back to standard vendor/product IDs for common thermal printers
         vendor_ids = [0x0416, 0x04b8, 0x067b, 0x0483, 0x1504, 0x1cb0, 0x0dd4]
         product_ids = [0x5011, 0x0202, 0x2303, 0x5740, 0x0006, 0x0003, 0x0180]
         
@@ -50,7 +66,7 @@ def detect_printer():
         logger.error(f"Error detecting printer: {str(e)}")
         printer_available = False
         return False
-
+        
 def get_printer():
     """Get a connection to the printer based on the detected printer info"""
     if not printer_available or not printer_info:
