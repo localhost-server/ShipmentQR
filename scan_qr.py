@@ -18,45 +18,74 @@ def detect_printer():
     global printer_available, printer_info
     
     try:
+        # Check if backend is available
+        import usb.core
+        import usb.util
+        
+        # Print backend information for debugging
+        logger.info(f"USB backend information: {usb.backend.libusb1.__file__ if hasattr(usb, 'backend') and hasattr(usb.backend, 'libusb1') else 'Not available'}")
+        
+        # Check if libusb is properly installed
+        backend = usb.backend.libusb1.get_backend()
+        if backend is None:
+            logger.error("No USB backend available. Make sure libusb is installed.")
+            printer_available = False
+            return False
+        
         # Specific Neiko/Beeprt PL70e-BT vendor/product ID from system_profiler output
         neiko_vendor_id = 0x09c6  # Vendor ID for your Beeprt Printer
         neiko_product_id = 0x0426  # Product ID for your printer
         
-        # Try the specific printer first
-        device = usb.core.find(idVendor=neiko_vendor_id, idProduct=neiko_product_id)
+        # Try the specific printer first with explicit backend
+        device = usb.core.find(idVendor=neiko_vendor_id, idProduct=neiko_product_id, backend=backend)
         if device is not None:
             logger.info(f"Found Neiko/Beeprt PL70e-BT printer with vendor ID: {neiko_vendor_id:04x}, product ID: {neiko_product_id:04x}")
-            printer_info = {
-                'vendor_id': neiko_vendor_id,
-                'product_id': neiko_product_id,
-                'in_ep': 0x81,  # Default input endpoint
-                'out_ep': 0x03  # Default output endpoint
-            }
+            
+            # Try to get endpoint information
+            try:
+                # Get configuration
+                cfg = device.get_active_configuration()
+                interface_number = 0
+                
+                # Get interface
+                interface = cfg[(0, 0)]
+                
+                # Get endpoints
+                in_ep = None
+                out_ep = None
+                
+                for ep in interface:
+                    if ep.bEndpointAddress & 0x80:  # IN endpoint
+                        in_ep = ep.bEndpointAddress
+                    else:  # OUT endpoint
+                        out_ep = ep.bEndpointAddress
+                
+                logger.info(f"Detected endpoints - IN: {in_ep}, OUT: {out_ep}")
+                
+                printer_info = {
+                    'vendor_id': neiko_vendor_id,
+                    'product_id': neiko_product_id,
+                    'in_ep': in_ep if in_ep is not None else 0x81,  # Use detected or default
+                    'out_ep': out_ep if out_ep is not None else 0x03  # Use detected or default
+                }
+            except Exception as ep_error:
+                logger.warning(f"Could not detect endpoints automatically: {str(ep_error)}")
+                logger.info("Using default endpoints")
+                printer_info = {
+                    'vendor_id': neiko_vendor_id,
+                    'product_id': neiko_product_id,
+                    'in_ep': 0x81,  # Default input endpoint
+                    'out_ep': 0x03  # Default output endpoint
+                }
+            
             printer_available = True
             return True
             
-        # Fall back to standard vendor/product IDs for common thermal printers
-        vendor_ids = [0x0416, 0x04b8, 0x067b, 0x0483, 0x1504, 0x1cb0, 0x0dd4]
-        product_ids = [0x5011, 0x0202, 0x2303, 0x5740, 0x0006, 0x0003, 0x0180]
-        
-        # Try to find the printer with different vendor/product ID combinations
-        for vendor_id in vendor_ids:
-            for product_id in product_ids:
-                try:
-                    # Check if device exists
-                    device = usb.core.find(idVendor=vendor_id, idProduct=product_id)
-                    if device is not None:
-                        logger.info(f"Found printer with vendor ID: {vendor_id:04x}, product ID: {product_id:04x}")
-                        printer_info = {
-                            'vendor_id': vendor_id,
-                            'product_id': product_id,
-                            'in_ep': 0x81,  # Default input endpoint
-                            'out_ep': 0x03  # Default output endpoint
-                        }
-                        printer_available = True
-                        return True
-                except Exception as e:
-                    continue
+        # List all USB devices for debugging
+        devices = usb.core.find(find_all=True, backend=backend)
+        logger.info("Available USB devices:")
+        for dev in devices:
+            logger.info(f"  Vendor ID: 0x{dev.idVendor:04x}, Product ID: 0x{dev.idProduct:04x}")
         
         logger.warning("No compatible printer found")
         printer_available = False
@@ -64,6 +93,8 @@ def detect_printer():
     
     except Exception as e:
         logger.error(f"Error detecting printer: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         printer_available = False
         return False
         
